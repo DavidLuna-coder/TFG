@@ -3,9 +3,9 @@ using Shared.DTOs;
 
 namespace Front.Validators
 {
-	public class LoginFormValidator : AbstractValidator<LoginRequestDto>
+	public class RegisterValidator : AbstractValidator<LoginRequestDto>
 	{
-		public LoginFormValidator() {
+		public RegisterValidator() {
 			RuleFor(x => x.Email).NotNull().NotEmpty().EmailAddress().WithMessage("La dirección de correo es obligatoria");
 
 			RuleFor(person => person.Password).NotEmpty().WithMessage("La contraseña es obligatoria.");
@@ -23,6 +23,25 @@ namespace Front.Validators
 					return Array.Empty<string>();
 				return result.Errors.Select(e => e.ErrorMessage);
 			};
+
+	}
+
+	public class LoginValidator : AbstractValidator<LoginRequestDto>
+	{
+		public LoginValidator()
+		{
+			RuleFor(x => x.Email).NotNull().NotEmpty().EmailAddress().WithMessage("La dirección de correo es obligatoria");
+
+			RuleFor(person => person.Password).NotEmpty().WithMessage("La contraseña es obligatoria.");
+		}
+
+		public Func<object, string, Task<IEnumerable<string>>> ValidateValues => async (model, propertyName) =>
+		{
+			var result = await ValidateAsync(ValidationContext<LoginRequestDto>.CreateWithOptions((LoginRequestDto)model, x => x.IncludeProperties(propertyName)));
+			if (result.IsValid)
+				return Array.Empty<string>();
+			return result.Errors.Select(e => e.ErrorMessage);
+		};
 
 	}
 }
