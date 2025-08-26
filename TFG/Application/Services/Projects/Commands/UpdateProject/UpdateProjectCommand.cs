@@ -41,6 +41,7 @@ public class UpdateProjectCommandHandler(ApplicationDbContext context,
 			.Include(p => p.Users)
 			.FirstOrDefaultAsync(p => p.Id == request.ProjectId, cancellationToken: cancellationToken) ?? throw new NotFoundException($"El proyecto con id {request.ProjectId} no existe");
 
+		string owner = existingProject.OwnerId;
 		var requestUserIds = request.UsersIds ?? new List<string>();
 
 		var projectUserIds = existingProject.Users.Select(u => u.Id).ToList();
@@ -60,7 +61,7 @@ public class UpdateProjectCommandHandler(ApplicationDbContext context,
 		}
 
 		// Remove users
-		foreach (var user in usersToRemove)
+		foreach (var user in usersToRemove.Where(u => existingProject.Users.Contains(u)))
 		{
 			existingProject.Users.Remove(user);
 		}
@@ -68,20 +69,20 @@ public class UpdateProjectCommandHandler(ApplicationDbContext context,
 		existingProject.Name = request.Name;
 		existingProject.Description = request.Description ?? string.Empty;
 
-		await UpdateProjectInGitlab(request, existingProject, usersToAdd, usersToRemove);
-		await UpdateProjectOpenProject(request, existingProject, usersToAdd, usersToRemove);
-		await UpdateSonarqubeProject(request, existingProject, usersToAdd, usersToRemove);
+		await UpdateProjectInGitlab(request, existingProject, usersToAdd, usersToRemove, owner);
+		await UpdateProjectOpenProject(request, existingProject, usersToAdd, usersToRemove, owner);
+		await UpdateSonarqubeProject(request, existingProject, usersToAdd, usersToRemove, owner);
 		await context.SaveChangesAsync(cancellationToken);
 
 		return existingProject.ToProjectDto();
 	}
 
-	private async Task UpdateProjectInGitlab(UpdateProjectCommand request, Project existingProject, List<User> usersToAdd, List<User> usersToRemove)
+	private async Task UpdateProjectInGitlab(UpdateProjectCommand request, Project existingProject, List<User> usersToAdd, List<User> usersToRemove, string owner)
 	{
 		NGitLab.Models.ProjectUpdate projectUpdate = request.ToGitlabProjectUpdate();
 		await gitLabClient.Projects.UpdateAsync(existingProject.GitlabId, projectUpdate);
 
-		foreach (var user in usersToRemove)
+		foreach (var user in usersToRemove.Where(u => u.Id != owner))
 		{
 			try
 			{
@@ -119,10 +120,10 @@ public class UpdateProjectCommandHandler(ApplicationDbContext context,
 		}
 	}
 
-	private async Task UpdateProjectOpenProject(UpdateProjectCommand request, Project existingProject, List<User> usersToAdd, List<User> usersToRemove)
+	private async Task UpdateProjectOpenProject(UpdateProjectCommand request, Project existingProject, List<User> usersToAdd, List<User> usersToRemove, string owner)
 	{
 		GetMembershipsQuery query = new();
-		foreach (var user in usersToRemove)
+		foreach (var user in usersToRemove.Where(u => u.Id != owner))
 		{
 			query.Filters = [
 					new OpenProjectFilters()
@@ -193,9 +194,9 @@ public class UpdateProjectCommandHandler(ApplicationDbContext context,
 		await openProjectClient.Projects.UpdateAsync(update);
 	}
 
-	private async Task UpdateSonarqubeProject(UpdateProjectCommand request, Project existingProject, List<User> usersToAdd, List<User> usersToRemove)
+	private async Task UpdateSonarqubeProject(UpdateProjectCommand request, Project existingProject, List<User> usersToAdd, List<User> usersToRemove, string owner)
 	{
-		foreach (var user in usersToRemove)
+		foreach (var user in usersToRemove.Where(u => u.Id != owner))
 		{
 			UserPermission userPermission = new() { Login = user.UserName, Permission = PermissionType.Admin, ProjectKey = existingProject.SonarQubeProjectKey };
 

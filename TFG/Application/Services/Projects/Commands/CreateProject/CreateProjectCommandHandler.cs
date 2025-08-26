@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using NGitLab;
 using NGitLab.Models;
 using Shared.DTOs.Projects;
+using System.Threading.Tasks;
 using TFG.Api.Exeptions;
 using TFG.Api.Mappers;
 using TFG.Application.Security;
+using TFG.Domain.Entities;
 using TFG.Infrastructure.Data;
+using TFG.Migrations;
 using TFG.OpenProjectClient;
 using TFG.OpenProjectClient.Models.Memberships;
 using TFG.SonarQubeClient;
@@ -14,9 +17,8 @@ using TFG.SonarQubeClient.Models;
 using GitlabProject = NGitLab.Models.Project;
 using OPProjectCreated = TFG.OpenProjectClient.Models.Projects.ProjectCreated;
 using OPProjectCreation = TFG.OpenProjectClient.Models.Projects.ProjectCreation;
-using User = TFG.Domain.Entities.User;
 using Project = TFG.Domain.Entities.Project;
-using System.Threading.Tasks;
+using User = TFG.Domain.Entities.User;
 
 namespace TFG.Application.Services.Projects.Commands.CreateProject;
 
@@ -35,15 +37,8 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 		var owner = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userInfo.UserId) ?? throw new NotFoundException("User does not exist");
 
 		// Verify all users in request.UsersIds exist
-		var projectUsers = await dbContext.Users.Where(u => request.UsersIds.Contains(u.Id) && u.Id != userInfo.UserId).ToListAsync();
-		if(owner is not null)
-		{
-			projectUsers.Add(owner);
-		}
-		if (projectUsers.Count < request.UsersIds.Count - 1)
-		{
-			throw new NotFoundException("One or more users do not exist");
-		}
+		var projectUsers = await dbContext.Users.Where(u => request.UsersIds.Contains(u.Id)).ToListAsync();
+
 
 		long? gitlabId = null;
 		string? sonarQubeProjectKey = null;
@@ -55,14 +50,14 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 			gitlabId = gitlabProject.Id;
 			sonarQubeProjectKey = request.Name.ToLowerInvariant().Replace(" ", "-");
 			string sonarQubeRepositoryIdentifier = gitlabProject.Id.ToString();
-			BoundedProject sonarQubeProject = await CreateAndConfigureSonarQubeProject(request, sonarQubeProjectKey, sonarQubeRepositoryIdentifier, projectUsers);
+			BoundedProject sonarQubeProject = await CreateAndConfigureSonarQubeProject(request, sonarQubeProjectKey, sonarQubeRepositoryIdentifier, projectUsers, owner);
 			OPProjectCreated opProjectCreated = await CreateAndConfigureOpenProjectProject(request, projectUsers, owner);
 			openprojectProjectId = opProjectCreated.Id;
 			Project createdProject = await CreateProjectInDatabase(request, projectUsers, gitlabProject, sonarQubeProjectKey, opProjectCreated.Id, owner);
 
 			return createdProject.ToProjectDto();
 		}
-		catch(Exception ex)
+		catch (Exception ex)
 		{
 			await CancelCreation(gitlabId, sonarQubeProjectKey, openprojectProjectId);
 			throw;
@@ -80,8 +75,9 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 			SonarQubeProjectKey = sonarQubeProjectKey,
 			GitlabId = gitlabProjectResult.Id.ToString(),
 			OpenProjectId = openProjectProjectId,
-			Users = projectUsers.Where(pu => pu.Id != owner.Id).ToList(),
-			CreatedAt = DateTime.UtcNow
+			Users = projectUsers.ToList(),
+			CreatedAt = DateTime.UtcNow,
+			Owner = owner
 		};
 
 		dbContext.Projects.Add(newProject);
@@ -89,17 +85,24 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 		return newProject;
 	}
 
-	private async Task<GitlabProject> CreateAndConfigureGitlabProject(CreateProjectCommand request, User user, IEnumerable<User> projectUsers)
+	private async Task<GitlabProject> CreateAndConfigureGitlabProject(CreateProjectCommand request, User owner, IEnumerable<User> projectUsers)
 	{
 		ProjectCreate gitLabProject = request.ToGitlabProjectCreate();
 		GitlabProject createdProject = await gitLabClient.Projects.CreateAsync(gitLabProject);
 
-		foreach (User projectUser in projectUsers)
+		ProjectMemberCreate ownerMember = new()
+		{
+			UserId = owner.GitlabId,
+			AccessLevel = AccessLevel.Owner
+		};
+		await gitLabClient.Members.AddMemberToProjectAsync(createdProject.Id, ownerMember);
+
+		foreach (User projectUser in projectUsers.Where(pu => pu.Id != owner.Id))
 		{
 			ProjectMemberCreate member = new()
 			{
 				UserId = projectUser.GitlabId,
-				AccessLevel = projectUser.Id != user.Id ? AccessLevel.Developer : AccessLevel.Owner
+				AccessLevel = AccessLevel.Developer
 			};
 			await gitLabClient.Members.AddMemberToProjectAsync(createdProject.Id, member);
 		}
@@ -107,7 +110,7 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 		return createdProject;
 	}
 
-	private async Task<BoundedProject> CreateAndConfigureSonarQubeProject(CreateProjectCommand projectDto, string projectKey, string repositoryIdentifier, IEnumerable<User> usersToInclude)
+	private async Task<BoundedProject> CreateAndConfigureSonarQubeProject(CreateProjectCommand projectDto, string projectKey, string repositoryIdentifier, IEnumerable<User> usersToInclude, User owner)
 	{
 		var dopSettings = await sonarQubeClient.DopTranslations.GetDopSettingsAsync();
 
@@ -120,7 +123,10 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 			new int[] { 0, 300, 1000 }
 		);
 
-		foreach (var user in usersToInclude)
+		UserPermission ownerPermission = new() { Login = owner.UserName!, ProjectKey = projectKey, Permission = PermissionType.Admin };
+		await sonarQubeClient.Permissions.AddUserAsync(ownerPermission);
+
+		foreach (var user in usersToInclude.Where(uti => uti.Id != owner.Id))
 		{
 			UserPermission userPermission = new() { Login = user.UserName!, ProjectKey = projectKey, Permission = PermissionType.Admin };
 			await sonarQubeClient.Permissions.AddUserAsync(userPermission);
@@ -164,9 +170,14 @@ public class CreateProjectCommandHandler(IUserInfoAccessor userInfoAccessor,
 			Active = true,
 		};
 		OPProjectCreated opProjectCreated = await openProjectClient.Projects.CreateAsync(openProjectProjectCreation);
-		foreach (User projectUser in users)
+		MembershipCreation ownerMembership = new()
 		{
-			int[] roles = projectUser.Id == owner.Id ? [8] : [6]; // Owner role is 8, Developer role is 6
+			Links = MembershipCreationLinksBuilder.Build(int.Parse(owner.OpenProjectId), [8], opProjectCreated.Id)
+		};
+		await openProjectClient.Memberships.CreateAsync(ownerMembership);
+		foreach (User projectUser in users.Where(pu => pu.Id != owner.Id))
+		{
+			int[] roles = [6]; // Owner role is 8, Developer role is 6
 			MembershipCreation membershipCreation = new()
 			{
 				Links = MembershipCreationLinksBuilder.Build(int.Parse(projectUser.OpenProjectId), roles, opProjectCreated.Id)

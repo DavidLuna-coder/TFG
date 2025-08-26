@@ -69,6 +69,13 @@ public class ApplicationDbContext : IdentityDbContext<User>
 			.HasValue<GoRaceProjectExperience>("Project")
 			.HasValue<GoRacePlatformExperience>("Platform");
 
+		// Configure the relationship between Project and User (Owner)
+		builder.Entity<Project>()
+			.HasOne(p => p.Owner)
+			.WithMany()
+			.HasForeignKey(p => p.OwnerId)
+			.OnDelete(DeleteBehavior.Restrict);
+
 		base.OnModelCreating(builder);
 	}
 
