@@ -14,7 +14,7 @@ namespace TFG.Application.Services.Projects.Commands.DeleteProject
 	{
 		public async Task Handle(DeleteProjectCommand request, CancellationToken cancellationToken)
 		{
-			Project projectToDelete = await dbContext.Projects.FirstOrDefaultAsync(p => p.Id == request.ProjectId) ?? throw new NotFoundException($"Project with id {request.ProjectId} does not exist");
+			Project projectToDelete = await dbContext.Projects.Include(p => p.ProjectExperiences).FirstOrDefaultAsync(p => p.Id == request.ProjectId) ?? throw new NotFoundException($"Project with id {request.ProjectId} does not exist");
 			List<Task> tasks = [];
 
 			if (!string.IsNullOrWhiteSpace(projectToDelete.GitlabId))
@@ -33,6 +33,7 @@ namespace TFG.Application.Services.Projects.Commands.DeleteProject
 			}
 
 			await Task.WhenAll(tasks);
+			projectToDelete.ProjectExperiences.Clear();
 			dbContext.Projects.Remove(projectToDelete);
 			await dbContext.SaveChangesAsync(cancellationToken);
 
