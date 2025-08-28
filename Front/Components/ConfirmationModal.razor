@@ -1,0 +1,31 @@
+﻿<MudDialog>
+	<TitleContent>
+		<MudText>@Title</MudText>
+	</TitleContent>
+	<DialogContent>
+		<MudText Typo="Typo.h6" GutterBottom="true">@Content</MudText>
+		<MudAlert Severity=Severity.Error Typo="Typo.body2">Esta acción no se puede deshacer</MudAlert>
+	</DialogContent>
+	<DialogActions>
+		<MudButton Color="Color.Secondary" Variant="Variant.Outlined" OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+		<MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Confirm">Confirmar</MudButton>
+	</DialogActions>
+</MudDialog>
+
+@code {
+	[Parameter]
+	public string Title { get; set; } = "¿Está seguro?";
+	[Parameter]
+	public string Content { get; set; } = "¿Está seguro de que quiere borrar el registro?";
+	[Parameter]
+	public EventCallback OnConfirmed { get; set; }
+	[CascadingParameter]
+	private IMudDialogInstance MudDialog { get; set; }
+
+
+	void Confirm()
+	{
+		OnConfirmed.InvokeAsync();
+		MudDialog.Close(DialogResult.Ok(true));
+	}
+}

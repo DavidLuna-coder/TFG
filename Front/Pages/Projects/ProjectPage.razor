@@ -3,6 +3,7 @@
 @using Front.Components
 @using Front.Components.Tables
 @using Front.Helpers
+@using Front.Services.Extensions
 @using Front.Services.StateService
 @using Shared.DTOs.Filters
 @using Shared.DTOs.Pagination
@@ -16,6 +17,8 @@
 @inject IUsersApi UsersApi
 @inject ProjectStateService ProjectStateService
 @inject IUserService UserService
+@inject IDialogService DialogService
+
 @if (loading)
 {
 	<MudProgressLinear Indeterminate />
@@ -55,7 +58,7 @@ else
 				@if ((UserService.Permissions & Permissions.DeleteProjects) != 0)
 				{
 					<MudTooltip Text="Eliminar">
-						<MudButton OnClick="DeleteProject" Color="Color.Error" Size="Size.Small" Style="margin-left:16px;">
+						<MudButton OnClick="OpenDeleteModal" Color="Color.Error" Size="Size.Small" Style="margin-left:16px;">
 							<MudIcon Icon="@Icons.Material.Filled.Delete" />
 						</MudButton>
 					</MudTooltip>
@@ -150,6 +153,10 @@ else
 		Nav.NavigateTo<ProjectsPage>();
 	}
 
+	Task OpenDeleteModal()
+	{
+		return DialogService.ShowConfirmationDialog(EventCallback.Factory.Create(this, DeleteProject));
+	}
 	async Task ArchiveProject()
 	{
 		try

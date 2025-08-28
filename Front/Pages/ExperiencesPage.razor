@@ -3,6 +3,7 @@
 @using Front.Components
 @using Front.Helpers
 @using Front.Pages.Experiences
+@using Front.Services.Extensions
 @inject IGoRaceExperiencesApi ExperiencesApi
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -35,7 +36,7 @@
 				<MudTd DataLabel="Fecha de creación">@context.CreatedAt.ToLocalTime().ToString()</MudTd>
 				<MudTd DataLabel="Acciones">
 					<MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="() => ShowEditDialog(context)">Editar</MudButton>
-					<MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => DeleteExperience(context.Id)">Eliminar</MudButton>
+					<MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => OpenDeleteDialog(context.Id)">Eliminar</MudButton>
 				</MudTd>
 			</RowTemplate>
 			<NoRecordsContent>
@@ -102,6 +103,11 @@
 		{
 			Snackbar.Add($"Error: {ex.Message}", Severity.Error);
 		}
+	}
+
+	Task OpenDeleteDialog(Guid id)
+	{
+		return DialogService.ShowConfirmationDialog(EventCallback.Factory.Create(this, () => DeleteExperience(id)));
 	}
 
 	void TypeChanged(string type)

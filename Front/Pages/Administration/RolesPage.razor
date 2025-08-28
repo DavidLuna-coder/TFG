@@ -2,9 +2,12 @@
 @using Front.ApiClient.Interfaces
 @using Front.Components
 @using Front.Helpers
+@using Front.Services.Extensions
 @using Shared.DTOs.Roles
 @inject IRolesApi RolesApi
 @inject NavigationManager Nav
+@inject IDialogService DialogService
+
 <Section Title="Roles" >
 	<ChildContent>
 		<MudTable @ref=table T="RolDto" Hover ServerData="OnServerDataRequested" >
@@ -16,7 +19,7 @@
 				<MudTd DataLabel="Role Name">@context.Name</MudTd>
 				<MudTd DataLabel="Actions">
 					<MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="@(() => EditRole(@context.Id))">Editar</MudButton>
-					<MudButton StartIcon="@Icons.Material.Filled.Delete" Variant=Variant.Text Color="Color.Error" OnClick="@(() => DeleteRole(@context.Id))">Eliminar</MudButton>
+					<MudButton StartIcon="@Icons.Material.Filled.Delete" Variant=Variant.Text Color="Color.Error" OnClick="@(() => OpenDeleteDialog(@context.Id))">Eliminar</MudButton>
 				</MudTd>
 			</RowTemplate>
 			<ToolBarContent>
@@ -40,7 +43,7 @@
 	async Task DeleteRole(Guid roleId)
 	{
 		await RolesApi.DeleteRol(roleId);
-	 	await table.ReloadServerData();
+		await table.ReloadServerData();
 	}
 
 	async Task<TableData<RolDto>> OnServerDataRequested(TableState ts, CancellationToken ct)
@@ -56,5 +59,10 @@
 	{
 		var parameters = new Dictionary<string, object> { { nameof(UpdateRolPage.RoleId), roleId.ToString() } };
 		return Nav.GetUrl<UpdateRolPage>(parameters);
+	}
+
+	Task OpenDeleteDialog(Guid roleId)
+	{
+		 return DialogService.ShowConfirmationDialog(EventCallback.Factory.Create(this, () => DeleteRole(roleId)));
 	}
 }

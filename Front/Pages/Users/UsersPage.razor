@@ -3,10 +3,13 @@
 @using Front.Components
 @using Front.Components.Tables
 @using Front.Helpers
+@using Front.Services.Extensions
 @using Shared.DTOs.Pagination
 @using Shared.DTOs.Users
 @inject IUsersApi UsersApi
 @inject NavigationManager Nav
+@inject IDialogService DialogService
+
 <PageTitle>Usuarios</PageTitle>
 
 
@@ -38,7 +41,7 @@
 					<MudButton Variant="Variant.Text"
 							   DropShadow
 							   Color="Color.Error"
-							   OnClick="@(() => Delete(context.Id))"
+							   OnClick="@(() => OpenDeleteDialog(context.Id))"
 							   StartIcon="@Icons.Material.Filled.Delete">Eliminar</MudButton>
 				}
 			</MudTd>
@@ -96,5 +99,10 @@
 			{ nameof(EditUserPage.UserId), userId }
 		};
 		Nav.NavigateTo<EditUserPage>(parameters);
+	}
+
+	Task OpenDeleteDialog(string userId)
+	{
+		return DialogService.ShowConfirmationDialog(EventCallback.Factory.Create(this, () => Delete(userId)));
 	}
 }
