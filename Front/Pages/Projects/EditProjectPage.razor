@@ -11,6 +11,7 @@
 @inject IProjectsApi ProjectsApi
 @inject IUsersApi UsersApi
 @inject NavigationManager Nav
+@using Front.Validators
 
 @if (project == null)
 {
@@ -20,7 +21,7 @@ else
 {
 	<Section Title="@project.Name">
 		<ChildContent>
-			<MudForm Model="model" @ref="_form">
+			<MudForm Model="model" @ref="_form" Validation="_validator.ValidateValues">
 				<MudStack>
 					<MudTextField Label="Nombre" @bind-Value="model.Name" For="() => model.Name" Required />
 					<MudTextField AutoGrow Class="mt-2" Label="Descripción" @bind-Value="model.Description" For="() => model.Description" />
@@ -44,6 +45,7 @@ else
 	ProjectDto project = default!;
 	UpdateProjectDto model = new();
 	HashSet<FilteredUserDto> users = [];
+	UpdateProjectValidator _validator = new();
 
 	protected async override Task OnInitializedAsync()
 	{
@@ -69,7 +71,6 @@ else
 
 		GoToProjectPage();
 	}
-
 
 	void GoToProjectPage()
 	{

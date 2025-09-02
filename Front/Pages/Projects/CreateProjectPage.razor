@@ -3,6 +3,7 @@
 @using Front.Components
 @using Front.Components.Tables
 @using Front.Helpers
+@using Front.Validators
 @using Shared.Constants
 @using Shared.DTOs.Projects
 @using Shared.DTOs.Users
@@ -15,9 +16,9 @@
 
 <MudContainer Class="mt-5" MaxWidth="MaxWidth.Medium">
 	<Section Title="Creación de Proyecto">
-		<MudForm @ref=form Model="createProjectDto">
+		<MudForm @ref=form Model="createProjectDto" Validation="validator.ValidateValues">
 			<MudStack>
-				<MudTextField Disabled=loading Class="mb-4" T="string" @bind-Value="@createProjectDto.Name" Label="Nombre" Required="true" RequiredError="Es necesario introducir el nombre del proyecto" />
+				<MudTextField For="@(() => createProjectDto.Name )" Disabled=loading Class="mb-4" T="string" @bind-Value="@createProjectDto.Name" Label="Nombre" Required="true" RequiredError="Es necesario introducir el nombre del proyecto" />
 				<MudTextField AutoGrow Disabled=loading Class="mb-4" T="string" @bind-Value="@createProjectDto.Description" Label="Descripción" />
 				<MudSelect Placeholder="Selecciona una plantilla de proyecto" Margin=Margin.Dense Clearable T="string" @bind-Value="@createProjectDto.Template">
 					<MudSelectItem Value="@GitlabProjectTemplates.DotNetCore">.Net Core</MudSelectItem>
@@ -41,7 +42,7 @@
 	MudForm? form;
 	bool loading;
 	HashSet<FilteredUserDto> users = [];
-
+	CreateProjectValidator validator = new();
 	async Task CreateProject()
 	{
 		if (form is null) return;

@@ -25,6 +25,8 @@ using TFG.Domain.Entities;
 using TFG.Infrastructure.Data;
 using TFG.Application.Security;
 using TFG.Application.Services.Projects.Commands.UpdateProject;
+using FluentValidation;
+using Front.Validators;
 
 namespace TFG.Api.Controllers
 {
@@ -34,9 +36,11 @@ namespace TFG.Api.Controllers
 	{
 		private readonly ApplicationDbContext _context = context;
 		private readonly UserManager<User> _userManager = userManager;
-		private readonly IProjectService _projectService = projectService;
 		private readonly IMediator _mediator = mediator;
 		private readonly IUserInfoAccessor _userInfoAccessor = userInfoAccessor;
+
+		private readonly CreateProjectValidator _validator = new();
+		private readonly UpdateProjectValidator _updateValidator = new();
 
 		// POST: api/Projects/search
 		[HttpPost("search")]
@@ -72,6 +76,12 @@ namespace TFG.Api.Controllers
 		[HttpPut("{id}")]
 		public async Task<IActionResult> PutProject(Guid id, UpdateProjectDto project)
 		{
+			var validationResult = await _updateValidator.ValidateAsync(project);
+			if (!validationResult.IsValid)
+			{
+				return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+			}
+
 			UpdateProjectCommand updateProjectCommand = new()
 			{
 				ProjectId = id,
@@ -90,6 +100,12 @@ namespace TFG.Api.Controllers
 		[HttpPost]
 		public async Task<ActionResult<Project>> CreateProject(CreateProjectDto projectDto)
 		{
+			var validationResult = await _validator.ValidateAsync(projectDto);
+			if (!validationResult.IsValid)
+			{
+				return BadRequest(validationResult.Errors.Select(e => e.ErrorMessage));
+			}
+
 			CreateProjectCommand command = new()
 			{
 				Description = projectDto.Description,
