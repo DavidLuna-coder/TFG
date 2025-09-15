@@ -79,8 +79,8 @@ namespace TFG.Application.Services.Projects.Queries.GetTasksSummary
 				var mergeRequests = gitlabMergeRequests.Embedded.Elements.Select(mr => new TaskSummaryMergeRequestInfo
 				{
 					Title = mr.Title,
-					Id = mr.Id,
-					CommitIds = gitlabClient.GetMergeRequest(gitlabProjectId).Commits(mr.Id).All
+					Id = mr.Number,
+					CommitIds = gitlabClient.GetMergeRequest(gitlabProjectId).Commits(mr.Number).All
 						.Select(c => c.ShortId)
 						.ToList(),
 				}).ToList();
